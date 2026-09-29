@@ -1,0 +1,34 @@
+name: Linux beta smoke test
+on:
+  workflow_dispatch:
+
+jobs:
+  launch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install desktop test dependencies
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64 libsecret-1-0
+      - name: Download Linux beta
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download v0.1.0-beta --repo MadeByGoodTools/GoodBackup-Updates --pattern 'Good-Backup-Linux-x64-beta.tar.gz'
+      - name: Check archive and native tools
+        run: |
+          tar -xzf Good-Backup-Linux-x64-beta.tar.gz
+          test -x 'Good Backup-linux-x64/Good Backup'
+          test -x 'Good Backup-linux-x64/resources/app/assets/bin/restic'
+          test -x 'Good Backup-linux-x64/resources/app/assets/bin/rclone'
+          'Good Backup-linux-x64/resources/app/assets/bin/restic' version
+          'Good Backup-linux-x64/resources/app/assets/bin/rclone' version | head -1
+      - name: Launch desktop app
+        run: |
+          xvfb-run -a 'Good Backup-linux-x64/Good Backup' --no-sandbox --disable-gpu > good-backup-launch.log 2>&1 &
+          app_pid=$!
+          sleep 12
+          if ! kill -0 "$app_pid" 2>/dev/null; then
+            cat good-backup-launch.log
+            exit 1
+          fi
+          kill "$app_pid" || true
+          echo 'Desktop app stayed open for 12 seconds.'
